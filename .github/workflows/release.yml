@@ -28,8 +28,6 @@ jobs:
             artifact: th06nc-unpack-windows-x64.exe
           - os: macos-latest
             artifact: th06nc-unpack-macos-arm64
-          - os: macos-13
-            artifact: th06nc-unpack-macos-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
