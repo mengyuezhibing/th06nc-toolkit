@@ -1,0 +1,9 @@
+node_modules/
+dist/
+unpacked/
+
+# 游戏资源与解包产物，不入库
+*.dat
+*.dds
+*.anm
+*.ecl

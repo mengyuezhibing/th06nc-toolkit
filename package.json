@@ -1,0 +1,32 @@
+{
+  "name": "th06nc-unpack",
+  "version": "1.0.0",
+  "description": "东方红魔乡 新典版（Touhou Koumakyou New Classic）PKGL 归档解包工具",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "th06nc-unpack": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "unpack": "tsx src/cli.ts",
+    "selftest": "tsx src/selftest.ts",
+    "build": "tsc && node -e \"const f='dist/cli.js',s=require('fs').readFileSync(f,'utf8');if(!s.startsWith('#!'))require('fs').writeFileSync(f,'#!/usr/bin/env node\\n'+s)\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fzstd": "^0.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
