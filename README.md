@@ -14,6 +14,31 @@ th06IN.dat  初始化资源
 
 ---
 
+## 获取
+
+### 方式一：免安装（推荐）
+
+到 [Releases](https://github.com/mengyuezhibing/th06nc-unpack/releases) 下载对应平台的文件：
+
+| 文件 | 适合 |
+|---|---|
+| `th06nc-unpack-windows-x64.exe` | Windows，直接命令行运行 |
+| `th06nc-unpack-macos-arm64` / `-x64` | macOS（Apple 芯片 / Intel） |
+| `th06nc-unpack-linux-x64` / `-arm64` | Linux |
+| `th06nc-unpack.cjs` | **任何装了 Node ≥18 的机器**，29 KB 单文件 |
+
+`.cjs` 版是通用兜底：所有依赖已内置，`node th06nc-unpack.cjs <归档>` 即可，无需 `npm install`。
+
+> 原生可执行由 GitHub Actions 在 Node 22 上构建。若某平台构建失败，
+> Release 里就没有那个文件 —— 用 `.cjs` 兜底即可，功能完全一样。
+
+### 方式二：源码运行
+
+```bash
+git clone https://github.com/mengyuezhibing/th06nc-unpack.git
+cd th06nc-unpack && npm install
+```
+
 ## 快速开始
 
 ```bash
@@ -29,7 +54,14 @@ npm run unpack -- "path/to/th06nc/data/th06ST.dat" --list
 npm run unpack -- "path/to/th06ST.dat" --filter '\.ecl$' -o ./ecl
 ```
 
-全局使用（构建后）：
+免安装版把 `npm run unpack --` 换成直接运行可执行文件即可，参数一致：
+
+```bash
+./th06nc-unpack-macos-arm64 "path/to/th06nc/data" -o ./unpacked --verify
+node th06nc-unpack.cjs "path/to/th06nc/data" -o ./unpacked --verify
+```
+
+全局使用（源码方式）：
 
 ```bash
 npm run build

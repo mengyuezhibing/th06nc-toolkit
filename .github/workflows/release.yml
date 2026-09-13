@@ -1,0 +1,99 @@
+name: Release
+
+# 打 v* 标签或手动触发。
+# 产物分两层：
+#   th06nc-unpack.cjs —— 29 KB 单文件，任何装了 Node ≥18 的机器 node 直接跑（必定成功）
+#   平台原生可执行     —— Node SEA 注入 node 本体，免装 Node（尽力而为）
+# SEA 在个别平台仍属实验特性，因此注入失败不阻塞发布，只少一个二进制。
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: th06nc-unpack-linux-x64
+          - os: ubuntu-24.04-arm
+            artifact: th06nc-unpack-linux-arm64
+          - os: windows-latest
+            artifact: th06nc-unpack-windows-x64.exe
+          - os: macos-latest
+            artifact: th06nc-unpack-macos-arm64
+          - os: macos-13
+            artifact: th06nc-unpack-macos-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: 打包单文件 bundle
+        run: npm run bundle
+
+      - name: 已知答案自检
+        run: npm run selftest
+
+      # ---- 平台原生可执行（SEA）。失败不阻塞，Release 里少一个文件而已 ----
+      - name: 构建单文件可执行（Node SEA）
+        id: sea
+        continue-on-error: true
+        shell: bash
+        run: |
+          node --experimental-sea-config sea-config.json
+          NODE_BIN=$(node -p "process.execPath")
+          cp "$NODE_BIN" "${{ matrix.artifact }}"
+          npx postject "${{ matrix.artifact }}" NODE_SEA_BLOB dist/sea-prep.blob \
+            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            codesign --remove-signature "${{ matrix.artifact }}" || true
+            codesign --sign - "${{ matrix.artifact }}"
+          fi
+          chmod +x "${{ matrix.artifact }}" 2>/dev/null || true
+
+      - name: 收集产物
+        shell: bash
+        run: |
+          mkdir -p release
+          cp dist/cli.cjs release/th06nc-unpack.cjs
+          if [ -f "${{ matrix.artifact }}" ]; then
+            cp "${{ matrix.artifact }}" release/
+          fi
+          cp README.md LICENSE release/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: release/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: 汇总
+        run: ls -lh artifacts/
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
