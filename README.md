@@ -24,7 +24,7 @@ th06IN.dat  初始化资源
 
 ### 方式一：免安装（推荐）
 
-到 [Releases](https://github.com/mengyuezhibing/th06nc-unpack/releases) 下载对应平台的文件：
+到 [Releases](https://github.com/mengyuezhibing/th06nc-toolkit/releases) 下载对应平台的文件：
 
 | 文件 | 适合 |
 |---|---|
@@ -44,11 +44,38 @@ th06IN.dat  初始化资源
 ### 方式二：源码运行
 
 ```bash
-git clone https://github.com/mengyuezhibing/th06nc-unpack.git
+git clone https://github.com/mengyuezhibing/th06nc-toolkit.git
 cd th06nc-unpack && npm install
 ```
 
-## 快速开始
+## 打开就有向导（不想记命令就用这个）
+
+**不带任何参数**打开工具（`node th06nc-unpack.cjs`，或直接运行平台可执行），
+终端里会出现向导，选数字就行：
+
+```
+  ─────────────────────────────────────────────
+   东方红魔乡 新典版 · 归档解包 / 回装工具
+   1783 个资源原样导出 · 改完素材封回 .dat
+  ─────────────────────────────────────────────
+
+  要做什么？
+    1) 解包：把 .dat 里的资源导出成文件
+    2) 回装：把改过的素材封回 .dat
+    3) 看看归档里有什么（不导出）
+    4) 退出
+```
+
+- **自动匹配本地游戏文件**：先扫当前目录、向上 3 层、下载 / 桌面 / 文档和 Steam
+  常见安装位置；找到含 `th06CM.dat` 的目录就列出来让你挑，旁边有 `th06nc.exe`
+  的会标「游戏本体 ✓」。没找到会让你手动输入路径。
+- **输出地址自己定**：解包问「放到哪个目录」（默认 `./unpacked`）；回装自动识别
+  `./unpacked` 里的改动文件，并让你指定封装结果的输出文件 / 目录
+  （默认归档旁的 `repacked/`，别直接覆盖原包，确认没问题再放回去）。
+- 向导的两个流程**自动带 `--verify`**，跑完会把产物位置和覆盖回哪里提示给你。
+- 脚本 / 管道调用时不会进入向导（检测到非终端输入会打印用法），自动化不受影响。
+
+## 命令行用法
 
 ```bash
 npm install
@@ -159,6 +186,7 @@ node th06nc-unpack.cjs pack "th06nc/data/th06CM.dat" --from ./unpacked --verify
 |---|---|
 | `--from <目录>` | 改动后的条目目录（不给就自动找：`<归档目录>/<归档名>/` → `./unpacked/<归档名>/` → `./<归档名>/`） |
 | `-o, --out <文件>` | 输出路径（默认 `<归档目录>/repacked/<原名>.dat`） |
+| `--out-dir <目录>` | 输出目录，每个归档输出 `<目录>/<原名>.dat`（一次回装多个归档时用这个） |
 | `--inplace` | 追加式：除改动条目外一个字节都不动。改大的条目会追加到文件末尾，此时数据区不再按偏移递增（官方包都是递增的），工具会提示；进游戏异常就改用默认 rebuild |
 | `--raw` | 不做 zstd 压缩（体积变大、零依赖；引擎原生支持 raw） |
 | `--zstd-level <n>` | zstd 级别，默认 **19**（实测与官方打包器产出一致） |
@@ -450,7 +478,18 @@ eff01.dds      官方 176803  L19 逐字节相同（首个差异字节 = 文件�
 
 ---
 
-## 作为库使用
+## 作为库使用 / 二次开发
+
+欢迎直接拿代码改。模块划分刻意保持简单，每个文件都能单独读懂：
+
+| 文件 | 内容 |
+|---|---|
+| `src/pkg.ts` | 格式本体：CRC32 / SplitMix64 密钥派生 / 索引与条目的编解码 / 读写两侧原语 |
+| `src/pack.ts` | 回装库：编码、布局、索引回写、校验、DDS 守卫（无 CLI 依赖，可直接 import） |
+| `src/unpack-cli.ts` / `src/pack-cli.ts` | 两个命令行实现（导出 `runUnpackCli` / `runPackCli`，可编程调用） |
+| `src/interactive.ts` + `src/prompt.ts` + `src/discover.ts` | 交互式向导（提问组件 / 找游戏 / 流程） |
+| `src/cli.ts` | 统一入口：向导 / 解包 / 回装的调度 |
+| `manifest.json` | 1783 条记录的完整清单（不含资源），可独立复核全部结论 |
 
 ```ts
 import { PkgArchive } from './src/pkg.ts';

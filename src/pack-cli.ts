@@ -19,7 +19,8 @@ const USAGE = `东方红魔乡 新典版（TH06NC）PKGL 归档回装工具
 
 选项
       --from <目录>     改动后的条目目录（不给就找 <归档目录>/<归档名>/、./unpacked/<归档名>/）
-  -o, --out <文件>      输出归档（默认 <原归档>.repacked.dat）
+  -o, --out <文件>      输出归档（默认 <原归档目录>/repacked/<归档名>.dat）
+      --out-dir <目录>  输出目录，每个归档输出 <目录>/<归档名>.dat（一次装多个归档时用这个）
       --inplace         追加式：除改动条目外一个字节都不动（最保险）
       --raw             不做 zstd 压缩（体积变大，但零依赖）
       --zstd-level <n>  zstd 压缩级别，默认 19（实测与官方打包器一致）
@@ -44,6 +45,8 @@ interface Options {
   input: string;
   from: string;
   out: string;
+  /** 多个归档时的输出目录（每个归档输出 <目录>/<归档名>.dat） */
+  outDir: string;
   mode: 'rebuild' | 'inplace';
   compress: boolean;
   zstdLevel: number;
@@ -59,6 +62,7 @@ function parseArgs(argv: string[]): Options {
     input: '',
     from: '',
     out: '',
+    outDir: '',
     mode: 'rebuild',
     compress: true,
     zstdLevel: 19,
@@ -72,6 +76,7 @@ function parseArgs(argv: string[]): Options {
     const a = argv[i];
     if (a === '--from') opts.from = argv[++i];
     else if (a === '-o' || a === '--out') opts.out = argv[++i];
+    else if (a === '--out-dir') opts.outDir = argv[++i];
     else if (a === '--inplace') opts.mode = 'inplace';
     else if (a === '--raw') opts.compress = false;
     else if (a === '--zstd-level') opts.zstdLevel = Number(argv[++i]);
@@ -183,7 +188,11 @@ async function packOne(archivePath: string, opts: Options): Promise<boolean> {
   const stem = path.basename(archivePath, path.extname(archivePath));
   // 默认输出到同目录的 repacked/ 子目录，并**保持文件名不变** ——
   // 索引密钥由文件名派生，改名就等于游戏解不开索引。
-  const outPath = opts.out || path.join(path.dirname(archivePath), 'repacked', `${stem}.dat`);
+  const outPath =
+    opts.out ??
+    (opts.outDir
+      ? path.join(opts.outDir, `${stem}.dat`)
+      : path.join(path.dirname(archivePath), 'repacked', `${stem}.dat`));
   const source = resolveFromDir(archivePath, stem, opts.from);
   const fromDir = source.dir;
 

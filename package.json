@@ -1,6 +1,10 @@
 {
-  "name": "th06nc-unpack",
-  "version": "1.1.0",
+  "name": "th06nc-toolkit",
+  "version": "1.2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mengyuezhibing/th06nc-toolkit.git"
+  },
   "description": "东方红魔乡 新典版（Touhou Koumakyou New Classic）PKGL 归档解包 / 回装工具",
   "type": "module",
   "license": "MIT",
