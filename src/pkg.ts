@@ -119,7 +119,12 @@ export function archiveSeed(nameOrPath: string): number {
   return crc32(dot > 0 ? base.slice(0, dot) : base);
 }
 
-/** 周期性 XOR，原地修改并返回 */
+/**
+ * 周期性 XOR。密钥固定 16 字节，第 i 字节与 `key[i % 16]` 异或。
+ *
+ * 该例程是**对称**的：加密与解密是同一个操作，原地修改并返回入参。
+ * 打包（回装）时对副本调用一次即完成「加密」。
+ */
 export function xorDecrypt(buf: Buffer, key: Buffer): Buffer {
   for (let i = 0; i < buf.length; i++) buf[i] ^= key[i & 15];
   return buf;
@@ -152,7 +157,8 @@ export interface PkgEntry {
   name: string;
 }
 
-const RECORD_HEADER_SIZE = 32;
+/** 索引记录固定头长度：u16 flags + u32 seed + u64×3 + u16 nameLength = 32 字节 */
+export const RECORD_HEADER_SIZE = 32;
 
 /** 解析已解密的索引区 */
 export function parseIndex(indexBuf: Buffer): PkgEntry[] {
@@ -183,6 +189,73 @@ export function parseIndex(indexBuf: Buffer): PkgEntry[] {
   return entries;
 }
 
+// ---------------------------------------------------------------- 索引编码（回装用）
+
+/**
+ * 数据区对齐粒度。实测 7 个归档的 1783 条记录：**每个条目数据的偏移都是 16 的倍数**，
+ * 且索引区结束后也要补齐到 16 再开始放数据。回装时必须保持这个约定。
+ */
+export const DATA_ALIGN = 16;
+
+/** 向上对齐到 a 的整数倍 */
+export function alignUp(n: number, a = DATA_ALIGN): number {
+  return Math.ceil(n / a) * a;
+}
+
+/**
+ * 把索引记录序列化为解密状态的字节串（写盘前还需整体 XOR 加密）。
+ *
+ * 布局与 `parseIndex` 严格互逆：
+ *   u16 flags | u32 seed | u64 originalSize | u64 storedSize | u64 offset | u16 nameLength | name
+ */
+export function serializeIndex(entries: readonly PkgEntry[]): Buffer {
+  let length = 0;
+  for (const e of entries) length += RECORD_HEADER_SIZE + Buffer.byteLength(e.name, 'latin1');
+
+  const buf = Buffer.allocUnsafe(length);
+  let off = 0;
+  for (const e of entries) {
+    const nameLen = Buffer.byteLength(e.name, 'latin1');
+    buf.writeUInt16LE(e.flags & 0xffff, off);
+    buf.writeUInt32LE(e.seed >>> 0, off + 2);
+    buf.writeBigUInt64LE(BigInt(e.originalSize), off + 6);
+    buf.writeBigUInt64LE(BigInt(e.storedSize), off + 14);
+    buf.writeBigUInt64LE(BigInt(e.offset), off + 22);
+    buf.writeUInt16LE(nameLen, off + 30);
+    buf.write(e.name, off + RECORD_HEADER_SIZE, nameLen, 'latin1');
+    off += RECORD_HEADER_SIZE + nameLen;
+  }
+  return buf;
+}
+
+/** 用条目种子对数据块加密（XOR 对称），返回**新缓冲区**，不改动入参 */
+export function encryptEntry(plain: Buffer, seed: number): Buffer {
+  return xorDecrypt(Buffer.from(plain), keyOf(seed));
+}
+
+/** 按归档名加密索引区，返回**新缓冲区** */
+export function encryptIndex(indexPlain: Buffer, archiveNameOrPath: string): Buffer {
+  return xorDecrypt(Buffer.from(indexPlain), keyOf(archiveSeed(archiveNameOrPath)));
+}
+
+// ---------------------------------------------------------------- 路径
+
+/**
+ * 归档内的名字理论上可直接当相对路径用，但仍要挡掉目录穿越
+ * （`../`、绝对路径、盘符），避免异常归档把文件写到输出目录之外。
+ *
+ * 返回规范化后的相对路径；不可用时返回 null。
+ */
+export function safeRelative(name: string): string | null {
+  const norm = name.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!norm) return null;
+  const parts = norm.split('/').filter((p) => p && p !== '.');
+  if (parts.length === 0) return null;
+  if (parts.some((p) => p === '..')) return null;
+  if (/^[a-zA-Z]:/.test(parts[0])) return null;
+  return parts.join('/');
+}
+
 // ---------------------------------------------------------------- 条目解码
 
 /** 解密并（按需）zstd 解压单条数据 */
@@ -209,7 +282,14 @@ export class PkgArchive {
     this.entries = entries;
   }
 
-  static open(filePath: string): PkgArchive {
+  /**
+   * 打开归档。
+   *
+   * `keyName` 是索引密钥的来源（归档名，如 `th06MD`），默认取 `filePath` 的文件名。
+   * 之所以要能单独指定：游戏按**文件名**解密索引，所以校验一个「改了名但还没放回原名」
+   * 的产物时，必须显式告诉解析器它将来会被命名成什么。
+   */
+  static open(filePath: string, keyName = filePath): PkgArchive {
     const fd = fs.openSync(filePath, 'r');
     try {
       const size = fs.fstatSync(fd).size;
@@ -230,7 +310,7 @@ export class PkgArchive {
       const indexBuf = Buffer.alloc(indexLength);
       fs.readSync(fd, indexBuf, 0, indexLength, 8);
       // 索引区种子来自归档文件名 —— 文件里没有任何地方存放它
-      xorDecrypt(indexBuf, keyOf(archiveSeed(filePath)));
+      xorDecrypt(indexBuf, keyOf(archiveSeed(keyName)));
 
       return new PkgArchive(filePath, fd, size, parseIndex(indexBuf));
     } catch (err) {
@@ -262,8 +342,8 @@ export class PkgArchive {
   }
 
   /** 打开 → 回调 → 必定关闭 */
-  static with<T>(filePath: string, fn: (archive: PkgArchive) => T): T {
-    const archive = PkgArchive.open(filePath);
+  static with<T>(filePath: string, fn: (archive: PkgArchive) => T, keyName?: string): T {
+    const archive = PkgArchive.open(filePath, keyName ?? filePath);
     try {
       return fn(archive);
     } finally {

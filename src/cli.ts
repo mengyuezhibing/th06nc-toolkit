@@ -1,20 +1,23 @@
 #!/usr/bin/env node
 /**
- * 东方红魔乡 新典版（TH06NC）PKGL 归档解包工具
+ * 东方红魔乡 新典版（TH06NC）PKGL 归档解包 / 回装工具
  *
  * 用法：
- *   th06nc-unpack <归档.dat | 含 .dat 的目录> [选项]
+ *   th06nc-unpack [unpack] <归档.dat | 含 .dat 的目录> [选项]
+ *   th06nc-unpack pack     <原归档.dat | 含 .dat 的目录> [选项]
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { PkgArchive, type PkgEntry } from './pkg.ts';
+import { PkgArchive, safeRelative, type PkgEntry } from './pkg.ts';
+import { runPackCli } from './pack-cli.ts';
 
-const USAGE = `东方红魔乡 新典版（TH06NC）PKGL 归档解包工具
+const USAGE = `东方红魔乡 新典版（TH06NC）PKGL 归档解包 / 回装工具
 
 用法
-  th06nc-unpack <归档.dat | 含 .dat 的目录> [选项]
+  th06nc-unpack [unpack] <归档.dat | 含 .dat 的目录> [选项]   解包
+  th06nc-unpack pack     <原归档.dat | 含 .dat 的目录> [选项]   回装（改完素材封回去）
 
-选项
+解包选项
   -o, --out <目录>       导出目录（默认 ./unpacked）
   -l, --list             只列出条目，不导出
       --json             配合 --list，输出 JSON
@@ -23,14 +26,18 @@ const USAGE = `东方红魔乡 新典版（TH06NC）PKGL 归档解包工具
       --keep-zstd        不做事先解压，仅解密（用于排查）
   -h, --help             显示本帮助
 
+回装选项
+  th06nc-unpack pack --help
+
 示例
   th06nc-unpack "th06nc/data"                       解全部归档
   th06nc-unpack "th06nc/data/th06ST.dat" -l         列目录
   th06nc-unpack "th06ST.dat" -f '\\.ecl$' -o ./ecl   只导 ECL 脚本
+  th06nc-unpack pack "th06nc/data/th06ST.dat" --from ./unpacked -v   回装
 
 说明
   归档名决定索引密钥，因此**不要重命名 .dat 文件**，否则会解密失败
-  （th06CM.dat 必须叫 th06CM.dat）。`;
+  （th06CM.dat 必须叫 th06CM.dat）。回装的产物同理，必须放回原名。`;
 
 interface Options {
   input: string;
@@ -81,20 +88,6 @@ function human(n: number): string {
   return `${(n / 1024 ** 3).toFixed(2)} GB`;
 }
 
-/**
- * 归档内的名字理论上可直接作相对路径，但仍要挡掉目录穿越
- * （`../`、绝对路径、盘符），避免异常归档写到输出目录之外。
- */
-function safeRelative(name: string): string | null {
-  const norm = name.replace(/\\/g, '/').replace(/^\/+/, '');
-  if (!norm) return null;
-  const parts = norm.split('/').filter((p) => p && p !== '.');
-  if (parts.length === 0) return null;
-  if (parts.some((p) => p === '..')) return null;
-  if (/^[a-zA-Z]:/.test(parts[0])) return null;
-  return parts.join('/');
-}
-
 function collectArchives(input: string): string[] {
   const st = fs.statSync(input);
   if (st.isFile()) return [input];
@@ -139,8 +132,8 @@ function listEntries(archivePath: string, entries: PkgEntry[], opts: Options): v
   }
 }
 
-function main(): void {
-  const opts = parseArgs(process.argv.slice(2));
+function main(argv: string[]): void {
+  const opts = parseArgs(argv);
   const archives = collectArchives(opts.input);
   if (archives.length === 0) {
     console.error('  未找到任何 .dat 归档');
@@ -214,9 +207,26 @@ function main(): void {
   }
 }
 
-try {
-  main();
-} catch (err) {
-  console.error(`  ✗ ${(err as Error).message}`);
-  process.exit(1);
+// 输出被 `| head` 之类提前关闭时不要抛 EPIPE
+process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') process.exit(0);
+  throw err;
+});
+
+const argv = process.argv.slice(2);
+const subcommand = argv[0];
+
+if (subcommand === 'pack' || subcommand === 'repack') {
+  // 回装：转交给 pack-cli（`th06nc-unpack pack …`）
+  runPackCli(argv.slice(1)).catch((err: Error) => {
+    console.error(`  ✗ ${err.message}`);
+    process.exit(1);
+  });
+} else {
+  try {
+    main(subcommand === 'unpack' ? argv.slice(1) : argv);
+  } catch (err) {
+    console.error(`  ✗ ${(err as Error).message}`);
+    process.exit(1);
+  }
 }

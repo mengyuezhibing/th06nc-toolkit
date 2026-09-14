@@ -2,7 +2,7 @@ name: Release
 
 # 打 v* 标签或手动触发。
 # 产物分两层：
-#   th06nc-unpack.cjs —— 29 KB 单文件，任何装了 Node ≥18 的机器 node 直接跑（必定成功）
+#   th06nc-unpack.cjs / th06nc-pack.cjs —— 单文件，任何装了 Node ≥18 的机器 node 直接跑（必定成功）
 #   平台原生可执行     —— Node SEA 注入 node 本体，免装 Node（尽力而为）
 # SEA 在个别平台仍属实验特性，因此注入失败不阻塞发布，只少一个二进制。
 
@@ -69,10 +69,11 @@ jobs:
         run: |
           mkdir -p release
           cp dist/cli.cjs release/th06nc-unpack.cjs
+          cp dist/pack.cjs release/th06nc-pack.cjs
           if [ -f "${{ matrix.artifact }}" ]; then
             cp "${{ matrix.artifact }}" release/
           fi
-          cp README.md LICENSE release/
+          cp README.md CHANGELOG.md LICENSE release/
 
       - uses: actions/upload-artifact@v4
         with:

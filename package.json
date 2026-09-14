@@ -1,15 +1,17 @@
 {
   "name": "th06nc-unpack",
-  "version": "1.0.0",
-  "description": "东方红魔乡 新典版（Touhou Koumakyou New Classic）PKGL 归档解包工具",
+  "version": "1.1.0",
+  "description": "东方红魔乡 新典版（Touhou Koumakyou New Classic）PKGL 归档解包 / 回装工具",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "th06nc-unpack": "dist/cli.js"
+    "th06nc-unpack": "dist/cli.js",
+    "th06nc-pack": "dist/pack-cli.js"
   },
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "engines": {
@@ -17,9 +19,12 @@
   },
   "scripts": {
     "unpack": "tsx src/cli.ts",
+    "pack": "tsx src/pack-cli.ts",
     "selftest": "tsx src/selftest.ts",
-    "bundle": "esbuild src/cli.ts --bundle --platform=node --format=cjs --outfile=dist/cli.cjs",
-    "build": "tsc && node -e \"const f='dist/cli.js',s=require('fs').readFileSync(f,'utf8');if(!s.startsWith('#!'))require('fs').writeFileSync(f,'#!/usr/bin/env node\\n'+s)\"",
+    "bundle": "npm run bundle:unpack && npm run bundle:pack",
+    "bundle:unpack": "esbuild src/cli.ts --bundle --platform=node --format=cjs --outfile=dist/cli.cjs --external:@bokuweb/zstd-wasm",
+    "bundle:pack": "esbuild src/pack-cli.ts --bundle --platform=node --format=cjs --outfile=dist/pack.cjs --external:@bokuweb/zstd-wasm",
+    "build": "tsc && node -e \"for(const f of ['dist/cli.js','dist/pack-cli.js']){const s=require('fs').readFileSync(f,'utf8');if(!s.startsWith('#!'))require('fs').writeFileSync(f,'#!/usr/bin/env node\\n'+s)}\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -31,5 +36,8 @@
     "postject": "^1.0.0-alpha.6",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
+  },
+  "optionalDependencies": {
+    "@bokuweb/zstd-wasm": "^0.0.27"
   }
 }
