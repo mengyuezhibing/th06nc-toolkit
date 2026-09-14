@@ -72,8 +72,9 @@ async function unpackFlow(dataDir: string): Promise<void> {
 
   const out = await ask('解出来的文件放到哪个目录', './unpacked');
   console.log('');
-  runUnpackCli([input, '-o', out, '--verify']);
-  console.log(`\n  ✔ 解包完成 → ${path.resolve(out)}`);
+  const ok = runUnpackCli([input, '-o', out, '--verify']);
+  if (ok) console.log(`\n  ✔ 解包完成 → ${path.resolve(out)}`);
+  else console.log('\n  ✗ 解包未全部成功（见上面的错误）');
 }
 
 /** 回装流程 */
@@ -114,8 +115,12 @@ async function packFlow(dataDir: string): Promise<void> {
   console.log('');
   const argv = [input, '--from', from, '--verify'];
   if (outFile) argv.push(scope === '' ? '-o' : '--out-dir', outFile);
-  await runPackCli(argv);
-  console.log(`\n  ✔ 回装完成（记得把产物按原名覆盖回 ${dataDir}）`);
+  let ok = await runPackCli(argv);
+  if (!ok && (await confirm('要覆盖已存在的输出（--force）再试一次吗？', false))) {
+    ok = await runPackCli([...argv, '--force']);
+  }
+  if (ok) console.log(`\n  ✔ 回装完成（记得把产物按原名覆盖回 ${dataDir}）`);
+  else console.log('\n  ✗ 回装未完成（见上面的错误）');
 }
 
 /** 交互入口：不带参数打开工具时调用 */

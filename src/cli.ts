@@ -28,7 +28,11 @@ const startInteractive = (): void => {
 
 if (first === 'pack' || first === 'repack') {
   // 回装：`th06nc-unpack pack …`（与 th06nc-pack 完全等价）
-  runPackCli(argv.slice(1)).catch(fail);
+  runPackCli(argv.slice(1))
+    .then((ok) => {
+      if (!ok) process.exitCode = 1;
+    })
+    .catch(fail);
 } else if (first === '-i' || first === '--interactive') {
   startInteractive();
 } else if (argv.length === 0) {
@@ -40,7 +44,7 @@ if (first === 'pack' || first === 'repack') {
   }
 } else {
   try {
-    runUnpackCli(first === 'unpack' ? argv.slice(1) : argv);
+    if (!runUnpackCli(first === 'unpack' ? argv.slice(1) : argv)) process.exitCode = 1;
   } catch (err) {
     fail(err as Error);
   }

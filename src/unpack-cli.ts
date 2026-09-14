@@ -121,8 +121,8 @@ function listEntries(archivePath: string, entries: PkgEntry[], opts: Options): v
   }
 }
 
-/** 解包主入口（与回装 CLI 同构，交互式向导也调用它） */
-export function runUnpackCli(argv: string[]): void {
+/** 解包主入口（与回装 CLI 同构，交互式向导也调用它）。返回是否全部成功 */
+export function runUnpackCli(argv: string[]): boolean {
   const opts = parseArgs(argv);
   const archives = collectArchives(opts.input);
   if (archives.length === 0) {
@@ -190,9 +190,7 @@ export function runUnpackCli(argv: string[]): void {
   if (!opts.list) {
     const secs = ((Date.now() - started) / 1000).toFixed(1);
     console.log(`\n  完成：${totals.files} 个文件，${human(totals.bytes)}，用时 ${secs}s`);
-    if (totals.failed > 0) {
-      console.log(`  失败 ${totals.failed} 个`);
-      process.exitCode = 1;
-    }
+    if (totals.failed > 0) console.log(`  失败 ${totals.failed} 个`);
   }
+  return totals.failed === 0;
 }

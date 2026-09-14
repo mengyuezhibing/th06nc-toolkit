@@ -189,7 +189,7 @@ async function packOne(archivePath: string, opts: Options): Promise<boolean> {
   // 默认输出到同目录的 repacked/ 子目录，并**保持文件名不变** ——
   // 索引密钥由文件名派生，改名就等于游戏解不开索引。
   const outPath =
-    opts.out ??
+    opts.out ||
     (opts.outDir
       ? path.join(opts.outDir, `${stem}.dat`)
       : path.join(path.dirname(archivePath), 'repacked', `${stem}.dat`));
@@ -277,8 +277,10 @@ async function packOne(archivePath: string, opts: Options): Promise<boolean> {
 /**
  * 回装 CLI 主入口。导出为函数，方便被解包工具当成 `pack` 子命令复用
  * （`th06nc-unpack pack <归档> …`，见 `cli.ts`）。
+ *
+ * 返回是否全部成功（交互式向导据此提示；命令行入口据它设置退出码）。
  */
-export async function runPackCli(argv: string[]): Promise<void> {
+export async function runPackCli(argv: string[]): Promise<boolean> {
   const opts = parseArgs(argv);
   const archives = collectArchives(opts.input);
   if (archives.length > 1 && opts.out) throw new Error('一次处理多个归档时不能指定 -o');
@@ -292,7 +294,7 @@ export async function runPackCli(argv: string[]): Promise<void> {
       console.error(`\n  ✗ ${path.basename(a)}：${(err as Error).message}`);
     }
   }
-  if (!ok) process.exitCode = 1;
+  return ok;
 }
 
 // 输出被 `| head` 之类提前关闭时不要抛 EPIPE
