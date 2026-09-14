@@ -50,6 +50,18 @@ cd th06nc-unpack && npm install
 
 ## 打开就有向导（不想记命令就用这个）
 
+### 一键启动（macOS）
+
+仓库里附带两个 **双击即可运行** 的启动器（macOS 的 `.command` 文件，双击会用
+终端打开并自动装依赖）：
+
+| 文件 | 作用 |
+|------|------|
+| `start.command` | 进**交互向导**：自动找到本机游戏目录，菜单选解包 / 回装 / 查看 |
+| `start-unpack.command` | **零提问直接解包**，产物全部进 `/tmp/th06nc-unpacked`（完事 `rm -rf /tmp/th06nc-unpacked` 即可清理） |
+
+Finder 里双击对应文件即可；首次运行会静默 `npm install` 装依赖，稍等几秒。
+
 **不带任何参数**打开工具（`node th06nc-unpack.cjs`，或直接运行平台可执行），
 终端里会出现向导，选数字就行：
 
